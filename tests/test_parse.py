@@ -177,3 +177,16 @@ def test_missing_docker_binary_raises_a_clean_error():
         assert "not found on PATH" in str(exc)
     else:
         raise AssertionError("expected DockerUnavailable")
+
+
+def test_failed_build_with_no_steps_is_not_reported_as_cached():
+    # A build that dies before any instruction runs must not claim success.
+    nl = chr(10)
+    log = ('#1 [internal] load build definition from Dockerfile' + nl +
+           '#1 DONE 0.0s' + nl +
+           'ERROR: failed to solve: open Dockerfile: no such file or directory')
+    build = parse_text(log)
+    assert build.build_steps == []
+    out = format_report(build)
+    assert 'Fully cached' not in out
+    assert 'nothing to profile' in out

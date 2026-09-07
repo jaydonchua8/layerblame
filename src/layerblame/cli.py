@@ -34,6 +34,12 @@ def cmd_record(args: argparse.Namespace) -> int:
         return 2
     print("\n" + format_report(build))
     print(f"\n  Saved to {path}")
+    if exit_code != 0:
+        print(
+            '  Build failed (docker exited ' + str(exit_code) + '). '
+            'Any profile above describes an incomplete build.',
+            file=sys.stderr,
+        )
     return exit_code
 
 

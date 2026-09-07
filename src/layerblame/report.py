@@ -6,6 +6,13 @@ from .parse import Build, Step, CACHED, EXECUTED, ERROR
 
 MARK = {CACHED: "cached", EXECUTED: "MISS", ERROR: "ERROR", "unknown": "?"}
 
+# A build that dies before any instruction runs (missing Dockerfile, bad
+# context path, syntax error) yields zero steps. Calling that fully cached
+# would be actively misleading, so it gets its own message.
+NO_STEPS = '''
+  No Dockerfile instructions ran, so there is nothing to profile.
+  The build failed before it started. Check the error above.'''
+
 
 def _truncate(text: str, width: int) -> str:
     return text if len(text) <= width else text[: width - 1] + "\u2026"
@@ -23,6 +30,8 @@ def format_table(build: Build, width: int = 64) -> str:
 
 def format_summary(build: Build) -> str:
     steps = build.build_steps
+    if not steps:
+        return NO_STEPS
     cached = sum(1 for s in steps if s.status == CACHED)
     lines = [
         "",
