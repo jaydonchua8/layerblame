@@ -10,11 +10,14 @@ BuildKit's own progress output and points at the line that actually cost you.
 ## Install
 
 ```sh
-pip install layerblame
+git clone https://github.com/jaydonchua8/layerblame
+cd layerblame
+pip install .
 ```
 
-Requires Python 3.9+ and a Docker daemon with BuildKit (default since 23.0).
-No third-party dependencies.
+Not on PyPI yet. Requires Python 3.9+ and has no third-party dependencies.
+`record` needs a Docker daemon with BuildKit (default since 23.0); `parse`
+works on any saved build log, with no Docker involved at all.
 
 ## Use
 
