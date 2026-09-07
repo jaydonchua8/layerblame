@@ -190,3 +190,18 @@ def test_failed_build_with_no_steps_is_not_reported_as_cached():
     out = format_report(build)
     assert 'Fully cached' not in out
     assert 'nothing to profile' in out
+
+
+def test_free_steps_are_not_labelled_as_cache_misses():
+    # BuildKit emits DONE, not CACHED, for image resolution. A FROM that ran
+    # in zero seconds is not a cache miss and must not be shown as one.
+    nl = chr(10)
+    log = ('#4 [1/2] FROM docker.io/library/alpine:3.20' + nl +
+           '#4 DONE 0.0s' + nl +
+           '#5 [2/2] COPY . .' + nl +
+           '#5 DONE 0.4s')
+    out = format_report(parse_text(log))
+    from_line = [x for x in out.splitlines() if 'FROM' in x][0]
+    copy_line = [x for x in out.splitlines() if 'COPY' in x][0]
+    assert 'ran' in from_line and 'MISS' not in from_line
+    assert 'MISS' in copy_line

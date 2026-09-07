@@ -91,6 +91,12 @@ Durations come from BuildKit's own `DONE` lines, so they measure vertex
 execution, not wall-clock build time. Concurrent stages mean the per-step
 numbers can add up to more than the build actually took.
 
+Steps that ran but cost nothing (image resolution, `WORKDIR`) are shown as
+`ran` rather than `MISS`, since only `RUN`, `COPY`, and `ADD` can actually
+cost you a rebuild. And when two stages share an identical base image,
+BuildKit emits a single vertex for both, so one stage will appear to be
+missing its `FROM` step. That is BuildKit deduplicating, not a parse error.
+
 ## Development
 
 ```sh

@@ -21,8 +21,14 @@ def _truncate(text: str, width: int) -> str:
 def format_table(build: Build, width: int = 64) -> str:
     rows = []
     for step in build.build_steps:
+        # BuildKit emits DONE (not CACHED) for image resolution and other
+        # free steps, so a FROM would otherwise be shown as a cache MISS.
+        # Only RUN/COPY/ADD can actually cost you a rebuild.
+        mark = MARK[step.status]
+        if step.status == EXECUTED and not step.costly:
+            mark = 'ran'
         rows.append(
-            f"  {step.label:>12}  {MARK[step.status]:<6} {step.seconds:>7.2f}s  "
+            f"  {step.label:>12}  {mark:<6} {step.seconds:>7.2f}s  "
             f"{_truncate(step.name, width)}"
         )
     return "\n".join(rows)
