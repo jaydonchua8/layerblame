@@ -7,6 +7,7 @@ import json
 import sys
 from pathlib import Path
 
+from . import __version__
 from .parse import Build, Step, parse_text
 from .record import DockerUnavailable, latest_run, load_run, record, store_dir
 from .report import diff_builds, format_report
@@ -81,6 +82,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="layerblame",
         description="Find out which Dockerfile instruction is busting your build cache.",
+    )
+    p.add_argument(
+        '--version',
+        action='version',
+        version='layerblame ' + __version__,
     )
     sub = p.add_subparsers(dest="command", required=True)
 

@@ -67,6 +67,10 @@ source copy and both come back.
 `record` passes `-f`, `--target`, and `--build-arg` through to `docker build`,
 plus `--docker-arg` for anything else.
 
+`record` writes its profiles to a `.layerblame/` directory inside the build
+context, so add that to your `.dockerignore` and `.gitignore`. Use `parse`
+instead if you would rather it write nothing at all.
+
 ## How it works
 
 BuildKit's `--progress=plain` output is a stream of vertex lines. `layerblame`
