@@ -36,6 +36,10 @@ def build_command(
     return cmd
 
 
+class DockerUnavailable(RuntimeError):
+    """docker isn't installed, isn't on PATH, or its daemon isn't running."""
+
+
 def run_build(cmd: list[str]) -> tuple[str, int]:
     """Run the build, streaming BuildKit's stderr through while capturing it.
 
@@ -43,20 +47,37 @@ def run_build(cmd: list[str]) -> tuple[str, int]:
     that prints to stdout still lands in the same transcript.
     """
     env = dict(os.environ, DOCKER_BUILDKIT="1")
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        env=env,
-        text=True,
-        bufsize=1,
-    )
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env,
+            text=True,
+            bufsize=1,
+        )
+    except FileNotFoundError as exc:
+        raise DockerUnavailable(
+            f"`{cmd[0]}` not found on PATH. Install Docker, or point layerblame "
+            "at an existing build log with `layerblame parse <logfile>`."
+        ) from exc
+    except PermissionError as exc:
+        raise DockerUnavailable(f"Not permitted to run `{cmd[0]}`: {exc}") from exc
+
     captured: list[str] = []
     assert proc.stdout is not None
     for line in proc.stdout:
         captured.append(line)
         print(line, end="")
-    return "".join(captured), proc.wait()
+    log = "".join(captured)
+    code = proc.wait()
+
+    if code != 0 and "cannot connect to the docker daemon" in log.lower():
+        raise DockerUnavailable(
+            "Docker is installed but its daemon isn't running. Start Docker "
+            "Desktop (or dockerd) and try again."
+        )
+    return log, code
 
 
 def save_run(context: str, build: Build, log: str, cmd: list[str], exit_code: int) -> Path:

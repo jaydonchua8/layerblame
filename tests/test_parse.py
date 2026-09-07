@@ -114,3 +114,66 @@ def test_diff_flags_a_step_that_stopped_hitting_cache():
     out = diff_builds(parse_text(SAMPLE), parse_text(BUSTED))
     assert "pip install" in out
     assert "cached->MISS" in out
+
+
+MULTISTAGE = """
+#3 [internal] load metadata for docker.io/library/golang:1.22
+#3 DONE 0.1s
+#5 [builder 1/4] FROM docker.io/library/golang:1.22
+#5 CACHED
+#6 [builder 2/4] WORKDIR /src
+#6 CACHED
+#7 [builder 3/4] COPY go.mod go.sum ./
+#7 CACHED
+#8 [builder 4/4] RUN go build -o app ./cmd
+#8 DONE 55.0s
+#9 [stage-1 1/3] FROM docker.io/library/alpine:3.20
+#9 CACHED
+#10 [stage-1 2/3] COPY --from=builder /src/app /app
+#10 DONE 0.2s
+#11 [stage-1 3/3] CMD ["/app"]
+#11 DONE 0.0s
+"""
+
+
+def test_multistage_steps_do_not_interleave():
+    build = parse_text(MULTISTAGE)
+    stages = [s.stage for s in build.build_steps]
+    assert stages == ["builder"] * 4 + ["stage-1"] * 3
+
+
+def test_multistage_labels_include_stage_name():
+    build = parse_text(MULTISTAGE)
+    assert build.build_steps[0].label == "builder 1/4"
+    assert build.build_steps[4].label == "stage-1 1/3"
+
+
+def test_multistage_blames_the_right_stage():
+    miss = parse_text(MULTISTAGE).first_miss()
+    assert miss.stage == "builder"
+    assert "go build" in miss.name
+
+
+def test_multistage_downstream_spans_later_stages():
+    # The builder RUN miss invalidates itself plus all three stage-1 steps.
+    # Comparing raw [i/n] indices would miss stage-1 steps 1 and 2 entirely.
+    out = format_report(parse_text(MULTISTAGE))
+    assert "Cache broke at step builder 4/4" in out
+    assert "invalidated 4 step(s)" in out
+    assert "55.2s" in out
+
+
+def test_single_stage_still_has_no_stage_prefix():
+    build = parse_text(SAMPLE)
+    assert build.build_steps[0].label == "1/5"
+
+
+def test_missing_docker_binary_raises_a_clean_error():
+    from layerblame.record import DockerUnavailable, run_build
+
+    try:
+        run_build(["layerblame-no-such-binary-xyz", "build", "."])
+    except DockerUnavailable as exc:
+        assert "not found on PATH" in str(exc)
+    else:
+        raise AssertionError("expected DockerUnavailable")

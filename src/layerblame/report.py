@@ -14,9 +14,8 @@ def _truncate(text: str, width: int) -> str:
 def format_table(build: Build, width: int = 64) -> str:
     rows = []
     for step in build.build_steps:
-        label = f"{step.index}/{step.total}" if step.index else "-"
         rows.append(
-            f"  {label:>7}  {MARK[step.status]:<6} {step.seconds:>7.2f}s  "
+            f"  {step.label:>12}  {MARK[step.status]:<6} {step.seconds:>7.2f}s  "
             f"{_truncate(step.name, width)}"
         )
     return "\n".join(rows)
@@ -37,11 +36,17 @@ def format_summary(build: Build) -> str:
         lines.append("  Fully cached. Nothing to fix.")
         return "\n".join(lines)
 
-    after = [s for s in build.build_steps if s.index and miss.index and s.index >= miss.index]
+    # Downstream is everything after the miss in build order. Comparing raw
+    # [i/n] indices would be wrong in a multi-stage build, where each stage
+    # restarts numbering and an unrelated stage's step 4 is not "below" this
+    # stage's step 3.
+    steps_in_order = build.build_steps
+    pos = steps_in_order.index(miss)
+    after = steps_in_order[pos:]
     downstream = sum(s.seconds for s in after)
     lines += [
         "",
-        f"  Cache broke at step {miss.index}/{miss.total}:",
+        f"  Cache broke at step {miss.label}:",
         f"    {miss.name}",
         f"  That invalidated {len(after)} step(s) below it, costing {downstream:.1f}s.",
     ]

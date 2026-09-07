@@ -57,8 +57,17 @@ class Step:
     index: int | None = None
     total: int | None = None
     stage: str | None = None
+    stage_order: int = 0
     internal: bool = False
     error: str = ""
+
+    @property
+    def label(self) -> str:
+        """Human-readable position, e.g. `builder 3/7` or `2/5`."""
+        if self.index is None:
+            return "-"
+        pos = f"{self.index}/{self.total}"
+        return f"{self.stage} {pos}" if self.stage else pos
 
     @property
     def instruction(self) -> str:
@@ -71,9 +80,16 @@ class Step:
 
     @property
     def sort_key(self) -> tuple:
-        # Real build steps first (ordered by their [i/n] index), then internal
-        # vertices in vertex order.
-        return (1 if self.internal else 0, self.index if self.index else 0, self.vertex)
+        # Real build steps first, grouped by stage (in the order the stages
+        # first appear), then by their [i/n] index within that stage. Each
+        # stage restarts numbering at 1, so sorting on index alone would
+        # interleave steps from different stages.
+        return (
+            1 if self.internal else 0,
+            self.stage_order,
+            self.index if self.index else 0,
+            self.vertex,
+        )
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -173,6 +189,22 @@ def parse_lines(lines: Iterable[str]) -> Build:
                 step.name = m.group("name").strip()
                 step.internal = True
             continue
+
+    # Stages are ordered by the lowest vertex number they contain, which is
+    # the order BuildKit first announced them.
+    first_vertex: dict[str | None, int] = {}
+    for step in steps.values():
+        if step.internal or step.index is None:
+            continue
+        prev = first_vertex.get(step.stage)
+        if prev is None or step.vertex < prev:
+            first_vertex[step.stage] = step.vertex
+    ranking = {
+        stage: rank
+        for rank, (stage, _) in enumerate(sorted(first_vertex.items(), key=lambda kv: kv[1]))
+    }
+    for step in steps.values():
+        step.stage_order = ranking.get(step.stage, 0)
 
     ordered = sorted(steps.values(), key=lambda s: s.sort_key)
     return Build(steps=ordered)

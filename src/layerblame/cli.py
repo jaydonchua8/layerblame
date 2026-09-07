@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from .parse import Build, Step, parse_text
-from .record import latest_run, load_run, record, store_dir
+from .record import DockerUnavailable, latest_run, load_run, record, store_dir
 from .report import diff_builds, format_report
 
 
@@ -21,13 +21,17 @@ def _build_from_payload(payload: dict) -> Build:
 
 
 def cmd_record(args: argparse.Namespace) -> int:
-    build, path, exit_code = record(
-        args.context,
-        dockerfile=args.file,
-        target=args.target,
-        build_args=args.build_arg,
-        extra=args.docker_arg,
-    )
+    try:
+        build, path, exit_code = record(
+            args.context,
+            dockerfile=args.file,
+            target=args.target,
+            build_args=args.build_arg,
+            extra=args.docker_arg,
+        )
+    except DockerUnavailable as exc:
+        print(f"layerblame: {exc}", file=sys.stderr)
+        return 2
     print("\n" + format_report(build))
     print(f"\n  Saved to {path}")
     return exit_code
